@@ -198,4 +198,50 @@ describe("full route scan", () => {
     expect(result.recommendations.map((recommendation) => recommendation.kind)).toEqual(["stock-openpilot", "sunnypilot"]);
     expect(result.recommendations[1].body).toContain("SunnyLink");
   });
+
+  it("samples only the first log segment for fingerprint debugging", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/files")) {
+        return Response.json({
+          qlogs: [
+            "https://example.test/route/0/qlog.zst",
+            "https://example.test/route/1/qlog.zst",
+            "https://example.test/route/2/qlog.zst",
+          ],
+        });
+      }
+      if (url.endsWith("/v1/route/test%7Croute/")) {
+        return Response.json({ fullname: "test|route" });
+      }
+      return new Response(new Uint8Array([0]));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(findFingerprintLogMessages).mockReturnValue({
+      ...emptyFingerprintLogMessages(),
+      carParams: [
+        {
+          logMonoTime: 1n,
+          brand: "hyundai",
+          carFingerprint: "KIA NIRO EV 2023",
+          fuzzyFingerprint: false,
+          notCar: false,
+          carVin: "",
+          dashcamOnly: false,
+          passive: false,
+          openpilotLongitudinalControl: false,
+          fingerprintSource: 0,
+          fingerprintSourceName: "can",
+          carFw: [],
+        },
+      ],
+    });
+
+    const result = await scanRouteForFingerprintDebug("test|route", () => {});
+
+    expect(result.scannedSegments).toBe(1);
+    expect(result.totalSegments).toBe(3);
+    expect(fetchMock).not.toHaveBeenCalledWith("https://example.test/route/1/qlog.zst");
+    expect(fetchMock).not.toHaveBeenCalledWith("https://example.test/route/2/qlog.zst");
+  });
 });

@@ -312,12 +312,13 @@ export async function scanRouteForFingerprintDebug(
   const canEvidence = new Map<string, CanEvidenceSummary>();
   let initData: InitDataMessage | null = null;
   let decodedSegments = 0;
+  const sampledLogUrls = context.logUrls.slice(0, 1);
 
-  for (let index = 0; index < context.logUrls.length; index += 1) {
-    const logUrl = context.logUrls[index];
+  for (let index = 0; index < sampledLogUrls.length; index += 1) {
+    const logUrl = sampledLogUrls[index];
     const segment = segmentFromUrl(logUrl);
     try {
-      const segmentScan = await downloadFingerprintSegmentScan(logUrl, segment, index, context.logUrls.length, context.source, onProgress);
+      const segmentScan = await downloadFingerprintSegmentScan(logUrl, segment, index, sampledLogUrls.length, context.source, onProgress);
       decodedSegments += 1;
       initData ??= segmentScan.messages.initData;
       context.routeInfo = routeInfoWithDeviceType(context.routeInfo, context.routeName, segmentScan.messages.deviceType);
@@ -343,7 +344,7 @@ export async function scanRouteForFingerprintDebug(
     phase: "done",
     message: recognized
       ? `Found ${selectedCarParams?.carFingerprint} after scanning ${decodedSegments} ${logFileKind(context.source)} segment(s).`
-      : `Built fingerprint evidence from ${decodedSegments} ${logFileKind(context.source)} segment(s).`,
+      : `Built fingerprint evidence from ${decodedSegments} sampled ${logFileKind(context.source)} segment(s).`,
   });
 
   return {
