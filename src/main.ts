@@ -12,6 +12,17 @@ import {
 import { formatLogMonoTime } from "./format";
 import { scanRouteForFingerprintDebug, type FingerprintScanResult, type Recommendation } from "./scan";
 
+const DEMO_ROUTES = [
+  {
+    label: "mici / Ford Bronco Sport",
+    url: "https://connect.comma.ai/5beb9b58bd12b691/0000010a--a51155e496",
+  },
+  {
+    label: "tizi / Toyota Corolla TSS2",
+    url: "https://connect.comma.ai/fde53c3c109fb4c0/000002ae--7da67a8960",
+  },
+] as const;
+
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing app element");
 
@@ -32,7 +43,12 @@ app.innerHTML = `
         <button class="scan-button" type="submit">Scan route</button>
       </div>
       <p class="form-hint">Reads uploaded qlogs first, falls back to rlogs, and builds a fingerprint evidence report from CarParams, firmware, startup events, and CAN messages.</p>
-      <button class="ghost-button" id="demo-button" type="button">Use demo route</button>
+      <div class="demo-row">
+        <select id="demo-route-select" aria-label="Demo route">
+          ${DEMO_ROUTES.map((route) => `<option value="${escapeHtml(route.url)}">${escapeHtml(route.label)}</option>`).join("")}
+        </select>
+        <button class="ghost-button" id="demo-button" type="button">Use demo route</button>
+      </div>
     </form>
 
     <section class="status-panel" id="status-panel" aria-live="polite">
@@ -71,6 +87,7 @@ app.innerHTML = `
 const form = document.querySelector<HTMLFormElement>("#reader-form")!;
 const input = document.querySelector<HTMLInputElement>("#route-input")!;
 const scanButton = document.querySelector<HTMLButtonElement>(".scan-button")!;
+const demoSelect = document.querySelector<HTMLSelectElement>("#demo-route-select")!;
 const demoButton = document.querySelector<HTMLButtonElement>("#demo-button")!;
 const statusText = document.querySelector<HTMLParagraphElement>("#status-text")!;
 const progressBar = document.querySelector<HTMLDivElement>("#progress-bar")!;
@@ -81,7 +98,7 @@ renderAuthPanel();
 void completePendingAuth();
 
 demoButton.addEventListener("click", () => {
-  input.value = "https://connect.comma.ai/5beb9b58bd12b691/0000010a--a51155e496";
+  input.value = demoSelect.value;
   input.focus();
 });
 
@@ -130,6 +147,7 @@ form.addEventListener("submit", async (event) => {
 
 function setBusy(busy: boolean): void {
   scanButton.disabled = busy;
+  demoSelect.disabled = busy;
   demoButton.disabled = busy;
   input.disabled = busy;
   progressBar.classList.toggle("error", false);
