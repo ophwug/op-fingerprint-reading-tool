@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CalibrationMessage } from "./capnp";
-import { findDeviceType } from "./capnp";
+import type { CalibrationMessage, FingerprintLogMessages } from "./capnp";
+import { findDeviceType, findFingerprintLogMessages } from "./capnp";
 import { decompressLog } from "./decompress";
-import { scanRouteForInvalidCalibration } from "./scan";
+import { scanRouteForFingerprintDebug, scanRouteForInvalidCalibration } from "./scan";
 
 vi.mock("./decompress", () => ({
   decompressLog: vi.fn((bytes: Uint8Array, url: string) => {
@@ -13,6 +13,13 @@ vi.mock("./decompress", () => ({
 
 vi.mock("./capnp", () => ({
   findDeviceType: vi.fn(() => "mici"),
+  findFingerprintLogMessages: vi.fn(() => ({
+    initData: null,
+    deviceType: null,
+    carParams: [],
+    onroadEvents: [],
+    canMessages: [],
+  })),
   findCalibrationMessages: vi.fn(() => [
     {
       logMonoTime: 1n,
@@ -27,6 +34,16 @@ vi.mock("./capnp", () => ({
     } satisfies CalibrationMessage,
   ]),
 }));
+
+function emptyFingerprintLogMessages(): FingerprintLogMessages {
+  return {
+    initData: null,
+    deviceType: null,
+    carParams: [],
+    onroadEvents: [],
+    canMessages: [],
+  };
+}
 
 describe("full route scan", () => {
   beforeEach(() => {
@@ -70,5 +87,115 @@ describe("full route scan", () => {
     });
     expect(findDeviceType).toHaveBeenCalledTimes(1);
     expect(decompressLog).toHaveBeenCalledTimes(2);
+  });
+
+  it("builds recognized fingerprint reports with public firmware and redacted VIN", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/files")) {
+          return Response.json({
+            qlogs: ["https://example.test/route/0/qlog.zst"],
+          });
+        }
+        if (url.endsWith("/v1/route/test%7Croute/")) {
+          return Response.json({ fullname: "test|route", git_branch: "release-c3" });
+        }
+        return new Response(new Uint8Array([0]));
+      }),
+    );
+    vi.mocked(findFingerprintLogMessages).mockReturnValue({
+      initData: {
+        logMonoTime: 1n,
+        deviceType: "mici",
+        version: "0.9.9",
+        gitCommit: "abcdef123456",
+        gitBranch: "release-c3",
+        gitRemote: "https://github.com/commaai/openpilot",
+        gitSrcCommit: "",
+      },
+      deviceType: "mici",
+      carParams: [
+        {
+          logMonoTime: 2n,
+          brand: "hyundai",
+          carFingerprint: "KIA OPTIMA 2020",
+          fuzzyFingerprint: false,
+          notCar: false,
+          carVin: "KNAGT4LEXLA000001",
+          dashcamOnly: false,
+          passive: false,
+          openpilotLongitudinalControl: true,
+          fingerprintSource: 1,
+          fingerprintSourceName: "fw",
+          carFw: [
+            {
+              ecu: 3,
+              ecuName: "fwdCamera",
+              fwVersionBytes: [72, 68, 65, 50],
+              fwVersionHex: "48 44 41 32",
+              fwVersionText: "HDA2",
+              address: 0x7c4,
+              subAddress: 0,
+              responseAddress: 0x7cc,
+              request: [],
+              brand: "hyundai",
+              bus: 1,
+            },
+          ],
+        },
+      ],
+      onroadEvents: [{ logMonoTime: 3n, name: 60, nameText: "startup" }],
+      canMessages: [{ logMonoTime: 4n, address: 0x5a0, src: 1, dataLength: 8 }],
+    });
+
+    const result = await scanRouteForFingerprintDebug("test|route", () => {});
+
+    expect(result.resultType).toBe("recognized");
+    expect(result.carParams?.carFingerprint).toBe("KIA OPTIMA 2020");
+    expect(result.carParams?.carVin).toMatchObject({
+      value: "KNAGT4LEXLA000001",
+      redacted: "KNA***********001",
+    });
+    expect(result.carParams?.carFw[0].fwVersionHex).toBe("48 44 41 32");
+    expect(result.canEvidence).toMatchObject([{ src: 1, address: 0x5a0, dataLength: 8, count: 1 }]);
+    expect(result.recommendations.map((recommendation) => recommendation.kind)).toContain("hardcoded-fp");
+  });
+
+  it("suggests stock and SunnyPilot paths for unrecognized routes", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.endsWith("/files")) {
+          return Response.json({ qlogs: ["https://example.test/route/0/qlog.zst"] });
+        }
+        if (url.endsWith("/v1/route/test%7Croute/")) {
+          return Response.json({ fullname: "test|route" });
+        }
+        return new Response(new Uint8Array([0]));
+      }),
+    );
+    vi.mocked(findFingerprintLogMessages).mockReturnValue({
+      ...emptyFingerprintLogMessages(),
+      initData: {
+        logMonoTime: 1n,
+        deviceType: "mici",
+        version: "sunny-dev",
+        gitCommit: "",
+        gitBranch: "sunnypilot-dev",
+        gitRemote: "https://github.com/sunnypilot/sunnypilot",
+        gitSrcCommit: "",
+      },
+      onroadEvents: [{ logMonoTime: 2n, name: 54, nameText: "carUnrecognized" }],
+      canMessages: [{ logMonoTime: 3n, address: 0x123, src: 0, dataLength: 8 }],
+    });
+
+    const result = await scanRouteForFingerprintDebug("test|route", () => {});
+
+    expect(result.resultType).toBe("unrecognized");
+    expect(result.recommendations.map((recommendation) => recommendation.kind)).toEqual(["stock-openpilot", "sunnypilot"]);
+    expect(result.recommendations[1].body).toContain("SunnyLink");
   });
 });

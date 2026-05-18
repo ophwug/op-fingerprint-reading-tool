@@ -1,14 +1,22 @@
-# openpilot invalid calibration scanner
+# openpilot fingerprint route debugger
 
-A small all-client-side web app that scans a public openpilot route for invalid
-`liveCalibration` messages.
+A small all-client-side web app that scans a public openpilot route for
+fingerprint debugging evidence.
 
 It fetches comma's public route file list, downloads qlogs first when available,
 falls back to rlogs, supports `.zst` and `.bz2`, decompresses in the browser, and
-decodes just enough Cap'n Proto to read calibration values. If it finds invalid
-calibration, it reports that message plus the valid calibration seen immediately
-before it when available. If no invalid calibration is found, it reports the
-earliest valid calibration as an all-clear.
+decodes just enough Cap'n Proto to summarize:
+
+- `CarParams`, including the selected `carFingerprint`, fingerprint source, mode
+  flags, redacted VIN, and `carFw`
+- public raw firmware bytes from `carFw.fwVersion`
+- startup and recognition events such as `carUnrecognized` and `dashcamMode`
+- compact CAN evidence grouped by bus/source, address, message length, count,
+  and first/last segment
+
+The report suggests next steps separately for stock openpilot, SunnyPilot's
+SunnyLink/car selector path, and hardcoded-fp as a last-resort debugging aid when
+a logged fingerprint is already known.
 
 ## Run locally
 
@@ -34,11 +42,11 @@ No server-side function is required.
 This repo includes a GitHub Actions workflow at `.github/workflows/pages.yml`.
 Pushes to `main` build the app and deploy `dist` to GitHub Pages.
 
-For the `ophwug/op-calibration-reading-tool` project page, the app is built
-with the Vite base path `/op-calibration-reading-tool/`, so the expected URL is:
+For the `ophwug/op-fingerprint-reading-tool` project page, the app is built
+with the Vite base path `/op-fingerprint-reading-tool/`, so the expected URL is:
 
 ```text
-https://ophwug.github.io/op-calibration-reading-tool/
+https://ophwug.github.io/op-fingerprint-reading-tool/
 ```
 
 ## Getting a usable route
@@ -56,28 +64,11 @@ https://connect.comma.ai/5beb9b58bd12b691/0000010a--a51155e496/90/105
 
 You can turn Public access off again after reading the route.
 
-## Scan modes
+## Privacy
 
-- **Quick look**: stop at the first valid calibration and show which device
-  tolerance bucket was used, plus the pitch/yaw landing visualization. This is
-  best for quickly checking where the mounted device calibration landed.
-- **Full scan**: scan uploaded qlogs first, fall back to rlogs only when qlogs
-  are unavailable, and check the route for invalid calibration. If invalid
-  calibration appears, report the invalid message and the valid calibration
-  immediately before it when available. This is best for debugging routes where
-  calibration changed or went bad mid-drive.
-
-## Current calibration tolerances
-
-As of the current openpilot `master` code checked on 2026-05-13, calibration is
-considered valid after at least 5 valid calibration blocks and when pitch/yaw are
-inside:
-
-- tici / comma 3 and tizi / comma 3x: pitch `-5.20°` to `9.74°`, yaw `-3.96°` to `3.96°`
-- mici / comma four: pitch `-8.20°` to `12.74°`, yaw `-3.96°` to `3.96°`
-
-The openpilot device settings text rounds the tici / comma 3 and tizi / comma
-3x case to within `4°` left/right and within `5°` up or `9°` down.
+The app runs in the browser and does not store route data. VIN is redacted in
+the visible report by default. Firmware bytes are intentionally public in the
+debugging report because they are core fingerprint evidence.
 
 ## Useful commands
 

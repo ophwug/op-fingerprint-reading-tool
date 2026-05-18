@@ -1,8 +1,16 @@
 import "./styles.css";
 import { completeAuthCallback, isSignedIn, setAccessToken, signOut } from "./auth";
-import { CALIBRATION_LIMITS, COMMA_JWT_PORTAL_URL, GITHUB_REPO_URL, OPENPILOT_MASTER_SOURCES } from "./constants";
-import { formatAngle, formatDegrees, formatLogMonoTime, pitchDirection, yawDirection, deviceLimitKey } from "./format";
-import { scanRouteForFirstValidCalibration, scanRouteForInvalidCalibration, type CalibrationScanResult } from "./scan";
+import {
+  COMMA_JWT_PORTAL_URL,
+  GITHUB_REPO_URL,
+  HARDCODED_FP_BRANCH_INDEX_URL,
+  OPENPILOT_FINGERPRINTING_URL,
+  OPENPILOT_MASTER_SOURCES,
+  SUNNYLINK_URL,
+  SUNNYPILOT_VEHICLE_SETTINGS_URL,
+} from "./constants";
+import { formatLogMonoTime } from "./format";
+import { scanRouteForFingerprintDebug, type FingerprintScanResult, type Recommendation } from "./scan";
 
 const app = document.querySelector<HTMLDivElement>("#app");
 if (!app) throw new Error("Missing app element");
@@ -12,7 +20,7 @@ app.innerHTML = `
     <header class="masthead">
       <div>
         <p class="eyebrow">openpilot route utility</p>
-        <h1>Invalid calibration scanner</h1>
+        <h1>Fingerprint route debugger</h1>
       </div>
     </header>
 
@@ -21,16 +29,15 @@ app.innerHTML = `
       <div class="input-row">
         <input id="route-input" name="route" autocomplete="off" spellcheck="false"
           placeholder="Paste Connect URL here, e.g. https://connect.comma.ai/<dongle>/<route>" />
-        <button class="scan-button" type="submit" name="scan-mode" value="quick">Quick look</button>
-        <button class="scan-button secondary" type="submit" name="scan-mode" value="full">Full scan</button>
+        <button class="scan-button" type="submit">Scan route</button>
       </div>
-      <p class="form-hint">Quick look stops at the first valid calibration. Full scan checks the route for invalid calibration and shows the previous valid value when available.</p>
+      <p class="form-hint">Reads uploaded qlogs first, falls back to rlogs, and builds a fingerprint evidence report from CarParams, firmware, startup events, and CAN messages.</p>
       <button class="ghost-button" id="demo-button" type="button">Use demo route</button>
     </form>
 
     <section class="status-panel" id="status-panel" aria-live="polite">
       <div class="progress-track"><div id="progress-bar"></div></div>
-      <p id="status-text">Paste a public route for a quick calibration look, or run a full qlog scan for invalid calibration.</p>
+      <p id="status-text">Paste a public route to inspect fingerprint evidence.</p>
     </section>
 
     <section id="result-panel" class="result-panel" hidden></section>
@@ -41,33 +48,21 @@ app.innerHTML = `
         <ol>
           <li>Open <a href="https://connect.comma.ai/" target="_blank" rel="noreferrer">comma Connect</a> and select the drive.</li>
           <li>Open <strong>More info</strong> and turn on <strong>Public access</strong>.</li>
-          <li>Copy either the browser URL or the route name. A current URL looks like <code>https://connect.comma.ai/&lt;dongle&gt;/&lt;route&gt;</code>. If clip start/end seconds are included after the route, they are ignored.</li>
+          <li>Copy either the browser URL or the route name. Clip start/end seconds after the route are ignored.</li>
           <li>You can turn Public access off again after reading the route.</li>
         </ol>
         <div class="jwt-option" id="auth-panel"></div>
       </article>
       <article>
-        <h2>Current tolerated values</h2>
-        <p>This scanner flags logged invalid calibration, or calibration outside these current openpilot pitch/yaw limits.</p>
-        <dl class="limits">
-          <div>
-            <dt>tici / comma 3 and tizi / comma 3x</dt>
-            <dd>${formatDegrees(CALIBRATION_LIMITS.default.pitchMinRad)} up to ${formatDegrees(CALIBRATION_LIMITS.default.pitchMaxRad)} down, yaw ${formatDegrees(CALIBRATION_LIMITS.default.yawMinRad)} to ${formatDegrees(CALIBRATION_LIMITS.default.yawMaxRad)}</dd>
-          </div>
-          <div>
-            <dt>mici / comma four</dt>
-            <dd>${formatDegrees(CALIBRATION_LIMITS.mici.pitchMinRad)} up to ${formatDegrees(CALIBRATION_LIMITS.mici.pitchMaxRad)} down, yaw ${formatDegrees(CALIBRATION_LIMITS.mici.yawMinRad)} to ${formatDegrees(CALIBRATION_LIMITS.mici.yawMaxRad)}</dd>
-          </div>
-        </dl>
-        <p class="muted">The device settings copy rounds this to within 4° left/right and within 5° up or 9° down for tici / comma 3 and tizi / comma 3x.</p>
+        <h2>Debug paths</h2>
+        <p>For stock openpilot, start with the <a href="${OPENPILOT_FINGERPRINTING_URL}" target="_blank" rel="noreferrer">fingerprinting guide</a> and nightly-dev. For SunnyPilot, use <a href="${SUNNYLINK_URL}" target="_blank" rel="noreferrer">SunnyLink</a> or the <a href="${SUNNYPILOT_VEHICLE_SETTINGS_URL}" target="_blank" rel="noreferrer">vehicle selector</a>. Use <a href="${HARDCODED_FP_BRANCH_INDEX_URL}" target="_blank" rel="noreferrer">hardcoded-fp</a> only as temporary debugging help.</p>
       </article>
     </section>
 
     <footer>
-      Route file discovery follows comma Connect's public <a href="${OPENPILOT_MASTER_SOURCES.commaApi}" target="_blank" rel="noreferrer">route files API</a>
-      and the newer Connect file upload model in <a href="${OPENPILOT_MASTER_SOURCES.newConnectFileApi}" target="_blank" rel="noreferrer">commaai/new-connect</a>.
-      Calibration limits come from <a href="${OPENPILOT_MASTER_SOURCES.calibrationd}" target="_blank" rel="noreferrer">openpilot calibrationd</a>,
-      and fields come from the <a href="${OPENPILOT_MASTER_SOURCES.logSchema}" target="_blank" rel="noreferrer">openpilot log schema</a>.
+      Route file discovery follows comma Connect's public <a href="${OPENPILOT_MASTER_SOURCES.commaApi}" target="_blank" rel="noreferrer">route files API</a>.
+      Log fields come from <a href="${OPENPILOT_MASTER_SOURCES.logSchema}" target="_blank" rel="noreferrer">openpilot log.capnp</a>
+      and <a href="${OPENPILOT_MASTER_SOURCES.carSchema}" target="_blank" rel="noreferrer">opendbc car.capnp</a>.
       Source: <a href="${GITHUB_REPO_URL}" target="_blank" rel="noreferrer">GitHub</a>.
     </footer>
   </section>
@@ -75,13 +70,12 @@ app.innerHTML = `
 
 const form = document.querySelector<HTMLFormElement>("#reader-form")!;
 const input = document.querySelector<HTMLInputElement>("#route-input")!;
-const scanButtons = [...document.querySelectorAll<HTMLButtonElement>(".scan-button")];
+const scanButton = document.querySelector<HTMLButtonElement>(".scan-button")!;
 const demoButton = document.querySelector<HTMLButtonElement>("#demo-button")!;
 const statusText = document.querySelector<HTMLParagraphElement>("#status-text")!;
 const progressBar = document.querySelector<HTMLDivElement>("#progress-bar")!;
 const resultPanel = document.querySelector<HTMLElement>("#result-panel")!;
 const authPanel = document.querySelector<HTMLElement>("#auth-panel")!;
-let renderGeneration = 0;
 
 renderAuthPanel();
 void completePendingAuth();
@@ -106,22 +100,17 @@ authPanel.addEventListener("click", (event) => {
     const tokenInput = document.querySelector<HTMLInputElement>("#token-input");
     setAccessToken(tokenInput?.value ?? null);
     renderAuthPanel();
-    statusText.textContent = isSignedIn()
-      ? "Saved JWT in this browser."
-      : "No JWT was saved.";
+    statusText.textContent = isSignedIn() ? "Saved JWT in this browser." : "No JWT was saved.";
   }
 });
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const submitter = event.submitter instanceof HTMLButtonElement ? event.submitter : null;
-  const mode = submitter?.value === "full" ? "full" : "quick";
   setBusy(true);
   clearResult();
 
   try {
-    const scanner = mode === "full" ? scanRouteForInvalidCalibration : scanRouteForFirstValidCalibration;
-    const result = await scanner(input.value, (progress) => {
+    const result = await scanRouteForFingerprintDebug(input.value, (progress) => {
       statusText.textContent = progress.message;
       if (progress.total && progress.current) {
         progressBar.style.width = `${Math.max(5, (progress.current / progress.total) * 100)}%`;
@@ -130,7 +119,6 @@ form.addEventListener("submit", async (event) => {
       }
     });
     renderResult(result);
-    void loadQcameraPreview(result, renderGeneration);
   } catch (error) {
     statusText.textContent = error instanceof Error ? error.message : String(error);
     progressBar.style.width = "100%";
@@ -141,9 +129,7 @@ form.addEventListener("submit", async (event) => {
 });
 
 function setBusy(busy: boolean): void {
-  for (const button of scanButtons) {
-    button.disabled = busy;
-  }
+  scanButton.disabled = busy;
   demoButton.disabled = busy;
   input.disabled = busy;
   progressBar.classList.toggle("error", false);
@@ -151,16 +137,13 @@ function setBusy(busy: boolean): void {
 }
 
 function clearResult(): void {
-  renderGeneration += 1;
   resultPanel.hidden = true;
   resultPanel.innerHTML = "";
 }
 
 function renderAuthPanel(): void {
   if (isSignedIn()) {
-    authPanel.innerHTML = `
-      <p class="jwt-saved">JWT saved. <button class="link-button" id="sign-out-button" type="button">Remove</button></p>
-    `;
+    authPanel.innerHTML = `<p class="jwt-saved">JWT saved. <button class="link-button" id="sign-out-button" type="button">Remove</button></p>`;
     return;
   }
 
@@ -198,230 +181,213 @@ async function completePendingAuth(): Promise<void> {
   }
 }
 
-function renderResult(result: CalibrationScanResult): void {
-  const message = result.message;
-  if (!message) return;
-  const limitKey = deviceLimitKey(result.routeInfo);
-  const limits = CALIBRATION_LIMITS[limitKey];
-  const pitch = message.rpyCalib[1];
-  const yaw = message.rpyCalib[2];
-  const roll = message.rpyCalib[0];
-
-  const isInvalid = result.resultType === "invalid";
-  const isIncomplete = result.resultType === "incomplete";
-  const isFullAllClear = result.scanMode === "full" && result.resultType === "valid";
-  const isQuick = result.scanMode === "quick";
-  const resultEyebrow = isQuick
-    ? "quick calibration look"
-    : isIncomplete
-      ? "partial route scan"
-      : isFullAllClear
-        ? "route calibration all clear"
-        : "earliest invalid calibration";
-  const resultBadge = isQuick
-    ? "first valid calibration"
-    : isIncomplete
-      ? "scan incomplete"
-    : isFullAllClear
-      ? "no invalid calibration found"
-      : result.reason === "status-invalid"
-        ? "logged invalid"
-        : "outside current limits";
-  const resultBadgeClass = isInvalid || isIncomplete ? "warn" : "ok";
-  const segmentText = isFullAllClear
-    ? `${result.totalSegments} ${logFileKind(result.logSource)} segment(s), earliest valid calibration in segment ${result.segment}`
-    : isIncomplete
-      ? `${result.scannedSegments} of ${result.totalSegments} ${logFileKind(result.logSource)} segment(s) decoded, earliest valid calibration in segment ${result.segment}`
-    : isQuick
-      ? `${result.segment} after scanning ${result.scannedSegments} ${logFileKind(result.logSource)} segment(s)`
-    : `${result.segment} after scanning ${result.scannedSegments} ${logFileKind(result.logSource)} segment(s)`;
-  const toleranceMarkup = renderToleranceVisualization(message, result.routeInfo, "Tolerance landing");
-  const readFailuresMarkup = result.readFailures.length > 0 ? renderReadFailures(result) : "";
-  const qcameraPreviewMarkup = renderQcameraPreview(result);
-  const previousValidMarkup =
-    isInvalid && result.previousValid
-      ? renderPreviousValid(result.previousValid, result.routeInfo)
-      : isInvalid
-        ? `<section class="previous-valid"><h3>Previous valid calibration</h3><p class="muted">No valid calibration was seen before this invalid event in the scanned logs.</p></section>`
-        : "";
+function renderResult(result: FingerprintScanResult): void {
+  const car = result.carParams;
+  const recognized = Boolean(car?.carFingerprint);
+  const badgeClass = recognized && result.resultType !== "incomplete" ? "ok" : "warn";
+  const badgeText = result.resultType === "incomplete" ? "scan incomplete" : recognized ? "recognized" : "needs fingerprint help";
 
   resultPanel.hidden = false;
   resultPanel.innerHTML = `
     <div class="result-header">
       <div>
-        <p class="eyebrow">${resultEyebrow}</p>
-        <h2>${formatAngle(pitch)} pitch ${pitchDirection(pitch)}, ${formatAngle(yaw)} yaw ${yawDirection(yaw)}</h2>
+        <p class="eyebrow">fingerprint evidence</p>
+        <h2>${recognized ? escapeHtml(car?.carFingerprint ?? "") : "No logged car fingerprint"}</h2>
       </div>
-      <span class="badge ${resultBadgeClass}">${resultBadge}</span>
+      <span class="badge ${badgeClass}">${badgeText}</span>
     </div>
     <dl class="result-list">
       <div><dt>Route</dt><dd><code>${escapeHtml(result.routeName)}</code></dd></div>
-      <div><dt>Segment</dt><dd>${segmentText}</dd></div>
-      <div><dt>Status</dt><dd>${message.statusName} (${message.calPerc}% complete, ${message.validBlocks} valid blocks)</dd></div>
-      <div><dt>Device tolerance</dt><dd>${limits.label}</dd></div>
-      <div><dt>Roll / pitch / yaw</dt><dd>${formatAngle(roll)} / ${formatAngle(pitch)} / ${formatAngle(yaw)}</dd></div>
-      <div><dt>Spread</dt><dd>${message.rpyCalibSpread.map(formatAngle).join(" / ") || "n/a"}</dd></div>
-      <div><dt>Height</dt><dd>${message.height.length ? `${message.height[0].toFixed(2)} m` : "n/a"}</dd></div>
-      <div><dt>Log mono time</dt><dd>${formatLogMonoTime(message.logMonoTime)}</dd></div>
-      <div><dt>Source log</dt><dd>${result.logSource === "qlogs" ? "qlog" : "rlog"}</dd></div>
-      <div><dt>Applied tolerance</dt><dd>${limits.label}: pitch ${formatDegrees(limits.pitchMinRad)} to ${formatDegrees(limits.pitchMaxRad)}, yaw ${formatDegrees(limits.yawMinRad)} to ${formatDegrees(limits.yawMaxRad)}</dd></div>
+      <div><dt>Segments</dt><dd>${result.scannedSegments} of ${result.totalSegments} ${logFileKind(result.logSource)} segment(s) decoded</dd></div>
+      <div><dt>Device</dt><dd>${escapeHtml(result.routeInfo?.deviceType ?? result.initData?.deviceType ?? "unknown")}</dd></div>
+      <div><dt>openpilot</dt><dd>${renderRouteVersion(result)}</dd></div>
     </dl>
-    ${readFailuresMarkup}
-    ${qcameraPreviewMarkup}
-    ${toleranceMarkup}
-    ${previousValidMarkup}
+    ${result.readFailures.length > 0 ? renderReadFailures(result) : ""}
+    ${renderRecommendations(result.recommendations)}
+    ${renderCarParams(result)}
+    ${renderEvents(result)}
+    ${renderCanEvidence(result)}
   `;
 }
 
-function logFileKind(source: CalibrationScanResult["logSource"]): "qlog" | "rlog" {
-  return source === "qlogs" ? "qlog" : "rlog";
+function renderRouteVersion(result: FingerprintScanResult): string {
+  const routeInfo = result.routeInfo;
+  const init = result.initData;
+  const version = routeInfo?.version || init?.version || "unknown";
+  const branch = routeInfo?.git_branch || routeInfo?.gitBranch || init?.gitBranch || "";
+  const commit = routeInfo?.git_commit || routeInfo?.gitCommit || init?.gitCommit || init?.gitSrcCommit || "";
+  return [version, branch, commit ? commit.slice(0, 12) : ""].filter(Boolean).map(escapeHtml).join(" / ") || "unknown";
 }
 
-function renderToleranceVisualization(message: NonNullable<CalibrationScanResult["message"]>, routeInfo: CalibrationScanResult["routeInfo"], title: string): string {
-  const limits = CALIBRATION_LIMITS[deviceLimitKey(routeInfo)];
+function renderRecommendations(recommendations: Recommendation[]): string {
   return `
-    <section class="tolerance-visual">
-      <h3>${title}</h3>
-      ${renderToleranceRow("Pitch", message.rpyCalib[1], limits.pitchMinRad, limits.pitchMaxRad, {
-        minLabel: `${formatDegrees(limits.pitchMaxRad)} down`,
-        zeroLabel: "0° level",
-        maxLabel: `${formatDegrees(limits.pitchMinRad)} up`,
-        hint: adjustmentHint(message.rpyCalib[1], "pitch"),
-        reverseAxis: true,
-      })}
-      ${renderToleranceRow("Yaw", message.rpyCalib[2], limits.yawMinRad, limits.yawMaxRad, {
-        minLabel: `${formatDegrees(limits.yawMaxRad)} left`,
-        zeroLabel: "0° center",
-        maxLabel: `${formatDegrees(limits.yawMinRad)} right`,
-        hint: adjustmentHint(message.rpyCalib[2], "yaw"),
-        reverseAxis: true,
-      })}
+    <section class="report-section">
+      <h3>Recommended next steps</h3>
+      <div class="recommendation-grid">
+        ${recommendations
+          .map(
+            (recommendation) => `
+              <article class="recommendation ${recommendation.kind}">
+                <h4>${escapeHtml(recommendation.title)}</h4>
+                <p>${escapeHtml(recommendation.body)}</p>
+                ${recommendation.links.length ? `<p class="link-list">${recommendation.links.map((link) => `<a href="${escapeHtml(link.url)}" target="_blank" rel="noreferrer">${escapeHtml(link.label)}</a>`).join(" ")}</p>` : ""}
+              </article>
+            `,
+          )
+          .join("")}
+      </div>
     </section>
   `;
 }
 
-function renderToleranceRow(
-  label: string,
-  value: number,
-  min: number,
-  max: number,
-  axisLabels: { minLabel: string; zeroLabel: string; maxLabel: string; hint: string; reverseAxis?: boolean },
-): string {
-  const rawPercent = ((value - min) / (max - min)) * 100;
-  const axisPercent = axisLabels.reverseAxis ? 100 - rawPercent : rawPercent;
-  const rawZeroPercent = ((0 - min) / (max - min)) * 100;
-  const axisZeroPercent = axisLabels.reverseAxis ? 100 - rawZeroPercent : rawZeroPercent;
-  const markerPercent = Math.min(100, Math.max(0, axisPercent));
-  const zeroPercent = Math.min(100, Math.max(0, axisZeroPercent));
-  const inside = value > min && value < max;
+function renderCarParams(result: FingerprintScanResult): string {
+  const car = result.carParams;
+  if (!car) {
+    return `
+      <section class="report-section">
+        <h3>CarParams</h3>
+        <p class="muted">No CarParams message was decoded. Use the CAN evidence and startup events below for manual fingerprint debugging.</p>
+      </section>
+    `;
+  }
+
   return `
-    <div class="tolerance-row">
-      <div class="tolerance-row-header">
-        <strong>${label}</strong>
-        <span class="${inside ? "inside" : "outside"}">${formatAngle(value)} ${inside ? "inside" : "outside"}</span>
-      </div>
-      <div class="tolerance-track" aria-label="${label} tolerance ${formatDegrees(min)} to ${formatDegrees(max)}, value ${formatAngle(value)}">
-        <span class="tolerance-zero" style="left: ${zeroPercent}%"></span>
-        <span class="tolerance-marker" style="left: ${markerPercent}%"></span>
-      </div>
-      <div class="tolerance-axis">
-        <span>${axisLabels.minLabel}</span>
-        <span class="tolerance-zero-label" style="left: ${zeroPercent}%">${axisLabels.zeroLabel}</span>
-        <span>${axisLabels.maxLabel}</span>
-      </div>
-      <p class="tolerance-hint">${axisLabels.hint}</p>
+    <section class="report-section">
+      <h3>CarParams</h3>
+      <dl class="result-list compact">
+        <div><dt>Brand</dt><dd>${escapeHtml(car.brand || "unknown")}</dd></div>
+        <div><dt>Fingerprint</dt><dd>${escapeHtml(car.carFingerprint || "none")}</dd></div>
+        <div><dt>Fingerprint source</dt><dd>${escapeHtml(car.fingerprintSourceName)} (${car.fingerprintSource})${car.fuzzyFingerprint ? ", fuzzy" : ""}</dd></div>
+        <div><dt>Mode flags</dt><dd>${renderFlagList([["dashcamOnly", car.dashcamOnly], ["passive", car.passive], ["notCar", car.notCar], ["openpilotLongitudinalControl", car.openpilotLongitudinalControl]])}</dd></div>
+        <div><dt>VIN</dt><dd>${car.carVin ? `<details><summary>${escapeHtml(car.carVin.redacted)}</summary><code>${escapeHtml(car.carVin.value)}</code></details>` : "n/a"}</dd></div>
+        <div><dt>Log mono time</dt><dd>${formatLogMonoTime(car.logMonoTime)}</dd></div>
+        <div><dt>Source segment</dt><dd>${car.segment}</dd></div>
+      </dl>
+      ${renderFirmwareTable(car.carFw)}
+    </section>
+  `;
+}
+
+function renderFirmwareTable(carFw: NonNullable<FingerprintScanResult["carParams"]>["carFw"]): string {
+  if (carFw.length === 0) return `<p class="muted section-note">No firmware entries were logged in CarParams.</p>`;
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ECU</th>
+            <th>Address</th>
+            <th>Bus</th>
+            <th>Brand</th>
+            <th>Raw fwVersion bytes</th>
+            <th>Text view</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${carFw
+            .map(
+              (fw) => `
+                <tr>
+                  <td>${escapeHtml(fw.ecuName)} (${fw.ecu})</td>
+                  <td>${formatAddress(fw.address)}${fw.subAddress ? ` / sub ${fw.subAddress}` : ""}${fw.responseAddress ? ` / resp ${formatAddress(fw.responseAddress)}` : ""}</td>
+                  <td>${fw.bus}</td>
+                  <td>${escapeHtml(fw.brand || "n/a")}</td>
+                  <td><code>${escapeHtml(fw.fwVersionHex || "empty")}</code></td>
+                  <td>${escapeHtml(fw.fwVersionText || "n/a")}</td>
+                </tr>
+              `,
+            )
+            .join("")}
+        </tbody>
+      </table>
     </div>
   `;
 }
 
-function adjustmentHint(value: number, axis: "pitch" | "yaw"): string {
-  if (Math.abs(value) < 0.0001) return "Already near 0°.";
-  if (axis === "pitch") {
-    return value > 0 ? "To get closer to 0°, aim the device more up." : "To get closer to 0°, aim the device more down.";
-  }
-  return value > 0 ? "To get closer to 0°, aim the device more to the right." : "To get closer to 0°, aim the device more to the left.";
-}
-
-function renderPreviousValid(previous: NonNullable<CalibrationScanResult["previousValid"]>, routeInfo: CalibrationScanResult["routeInfo"]): string {
-  const message = previous.message;
-  const roll = message.rpyCalib[0];
-  const pitch = message.rpyCalib[1];
-  const yaw = message.rpyCalib[2];
+function renderEvents(result: FingerprintScanResult): string {
+  const importantEvents = result.onroadEvents.filter((event) =>
+    ["carUnrecognized", "dashcamMode", "startupNoCar", "startupNoControl", "canBusMissing", "canError", "vehicleSensorsInvalid"].includes(event.nameText),
+  );
+  const events = importantEvents.length ? importantEvents : result.onroadEvents.slice(0, 16);
   return `
-    <section class="previous-valid">
-      <h3>Previous valid calibration</h3>
-      <dl class="result-list compact">
-        <div><dt>Segment</dt><dd>${previous.segment}</dd></div>
-        <div><dt>Status</dt><dd>${message.statusName} (${message.calPerc}% complete, ${message.validBlocks} valid blocks)</dd></div>
-        <div><dt>Roll / pitch / yaw</dt><dd>${formatAngle(roll)} / ${formatAngle(pitch)} / ${formatAngle(yaw)}</dd></div>
-        <div><dt>Log mono time</dt><dd>${formatLogMonoTime(message.logMonoTime)}</dd></div>
-      </dl>
-      ${renderToleranceVisualization(message, routeInfo, "Previous valid landing")}
+    <section class="report-section">
+      <h3>Startup and recognition events</h3>
+      ${
+        events.length
+          ? `<div class="event-list">${events.map((event) => `<span class="event-chip">${escapeHtml(event.nameText)} <small>seg ${event.segment}</small></span>`).join("")}</div>`
+          : `<p class="muted">No onroadEvents messages were decoded.</p>`
+      }
     </section>
   `;
 }
 
-function renderReadFailures(result: CalibrationScanResult): string {
+function renderCanEvidence(result: FingerprintScanResult): string {
+  const rows = result.canEvidence.slice(0, 240);
+  return `
+    <section class="report-section">
+      <h3>CAN evidence</h3>
+      <p class="muted section-note">${result.canEvidence.length} unique source/address/length groups${result.canEvidence.length > rows.length ? `; showing first ${rows.length}` : ""}.</p>
+      ${
+        rows.length
+          ? `
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Bus/src</th>
+                    <th>Address</th>
+                    <th>Length</th>
+                    <th>Count</th>
+                    <th>Segments</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${rows
+                    .map(
+                      (row) => `
+                        <tr>
+                          <td>${row.src}</td>
+                          <td>${formatAddress(row.address)}</td>
+                          <td>${row.dataLength}</td>
+                          <td>${row.count}</td>
+                          <td>${row.firstSegment === row.lastSegment ? row.firstSegment : `${row.firstSegment}-${row.lastSegment}`}</td>
+                        </tr>
+                      `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            </div>
+          `
+          : `<p class="muted">No CAN messages were decoded.</p>`
+      }
+    </section>
+  `;
+}
+
+function renderReadFailures(result: FingerprintScanResult): string {
   return `
     <section class="scan-warning">
       <h3>Unreadable ${logFileKind(result.logSource)} segment(s)</h3>
-      <p class="muted">These segments could not be checked, so the full scan is incomplete.</p>
+      <p class="muted">These segments could not be checked, so the evidence report is incomplete.</p>
       <ul>
-        ${result.readFailures
-          .map(
-            (failure) =>
-              `<li>Segment ${failure.segment}: ${escapeHtml(failure.message)}</li>`,
-          )
-          .join("")}
+        ${result.readFailures.map((failure) => `<li>Segment ${failure.segment}: ${escapeHtml(failure.message)}</li>`).join("")}
       </ul>
     </section>
   `;
 }
 
-function renderQcameraPreview(result: CalibrationScanResult): string {
-  if (!result.qcameraPreview) return "";
-  return `
-    <section class="qcamera-preview" id="qcamera-preview" data-preview-url="${escapeHtml(result.qcameraPreview.logUrl)}">
-      <div class="qcamera-preview-header">
-        <h3>optional qcamera preview</h3>
-        <span>${previewCaption(result)}</span>
-      </div>
-      <div class="qcamera-frame" id="qcamera-frame">Loading first frame...</div>
-    </section>
-  `;
+function renderFlagList(flags: Array<[string, boolean]>): string {
+  const enabled = flags.filter(([, value]) => value).map(([label]) => label);
+  return enabled.length ? enabled.map(escapeHtml).join(", ") : "none";
 }
 
-async function loadQcameraPreview(result: CalibrationScanResult, generation: number): Promise<void> {
-  const preview = result.qcameraPreview;
-  if (!preview) return;
-  const frame = document.querySelector<HTMLElement>("#qcamera-frame");
-  if (!frame) return;
-
-  try {
-    const { captureFirstQcameraFrame } = await import("./qcameraPreview");
-    const captured = await captureFirstQcameraFrame(preview.logUrl);
-    if (generation !== renderGeneration) return;
-    frame.innerHTML = `
-      <img src="${captured.dataUrl}" alt="${escapeHtml(previewCaption(result))}" width="${captured.width}" height="${captured.height}" />
-      <p>${Math.ceil(captured.bytesFetched / 1024)} KiB fetched</p>
-    `;
-  } catch (error) {
-    if (generation !== renderGeneration) return;
-    frame.classList.add("unavailable");
-    const detail = error instanceof Error ? error.message : String(error);
-    frame.innerHTML = `
-      <p>qcamera preview unavailable. Calibration scan result is unaffected.</p>
-      <p class="qcamera-preview-detail">${escapeHtml(detail)}</p>
-    `;
-  }
+function logFileKind(source: FingerprintScanResult["logSource"]): "qlog" | "rlog" {
+  return source === "qlogs" ? "qlog" : "rlog";
 }
 
-function previewCaption(result: CalibrationScanResult): string {
-  const preview = result.qcameraPreview;
-  if (!preview) return "";
-  if (preview.reason === "invalid-segment") return `first frame from invalid segment ${preview.segment}`;
-  if (preview.reason === "unreadable-segment") return `first frame from unreadable segment ${preview.segment}`;
-  return `first frame from segment ${preview.segment}`;
+function formatAddress(address: number): string {
+  return `0x${address.toString(16).toUpperCase()}`;
 }
 
 function escapeHtml(value: string): string {

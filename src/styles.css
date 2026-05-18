@@ -333,6 +333,110 @@ footer {
   padding-left: 20px;
 }
 
+.report-section {
+  margin-top: 22px;
+  border-top: 1px solid #edf1ef;
+  padding-top: 18px;
+}
+
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.recommendation {
+  border: 1px solid #d8e0dc;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8faf9;
+}
+
+.recommendation h4 {
+  margin: 0;
+  color: #132023;
+  font-size: 0.96rem;
+}
+
+.recommendation p {
+  margin: 8px 0 0;
+  color: #3f5550;
+}
+
+.link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-weight: 800;
+}
+
+.section-note {
+  margin: 8px 0 0;
+}
+
+.table-wrap {
+  margin-top: 12px;
+  border: 1px solid #d8e0dc;
+  border-radius: 8px;
+  overflow: auto;
+}
+
+table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #edf1ef;
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: #435955;
+  background: #f3f7f5;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+tr:last-child td {
+  border-bottom: 0;
+}
+
+td code {
+  white-space: pre-wrap;
+}
+
+.event-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.event-chip {
+  display: inline-flex;
+  min-height: 30px;
+  align-items: center;
+  gap: 7px;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #e7efe9;
+  color: #244540;
+  font-weight: 800;
+}
+
+.event-chip small {
+  color: #6b7c78;
+  font-weight: 700;
+}
+
 .qcamera-preview {
   margin-top: 22px;
   border-top: 1px solid #edf1ef;
@@ -499,6 +603,7 @@ footer {
   .input-row,
   .token-row,
   .info-grid,
+  .recommendation-grid,
   .result-list div,
   .limits div {
     grid-template-columns: 1fr;
@@ -622,10 +727,47 @@ footer {
 
   .result-list div,
   .limits div,
+  .report-section,
   .previous-valid,
   .qcamera-preview,
   .tolerance-visual {
     border-top-color: #2b3733;
+  }
+
+  .recommendation {
+    border-color: #34403c;
+    background: #0b100e;
+  }
+
+  .recommendation h4 {
+    color: #f4f7f5;
+  }
+
+  .recommendation p {
+    color: #cbd5d1;
+  }
+
+  .table-wrap {
+    border-color: #34403c;
+  }
+
+  th,
+  td {
+    border-bottom-color: #2b3733;
+  }
+
+  th {
+    color: #cbd5d1;
+    background: #111a17;
+  }
+
+  .event-chip {
+    background: #17241f;
+    color: #d9f8ee;
+  }
+
+  .event-chip small {
+    color: #b7c4bf;
   }
 
   .scan-warning {

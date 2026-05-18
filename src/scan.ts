@@ -1,4 +1,24 @@
-import { findCalibrationMessages, findDeviceType, type CalibrationMessage, type DeviceType } from "./capnp";
+import {
+  findCalibrationMessages,
+  findDeviceType,
+  findFingerprintLogMessages,
+  type CalibrationMessage,
+  type CarParamsMessage,
+  type DeviceType,
+  type FingerprintLogMessages,
+  type InitDataMessage,
+  type OnroadEventMessage,
+} from "./capnp";
+import {
+  HARDCODED_FP_BRANCH_INDEX_URL,
+  HARDCODED_FP_REPO_URL,
+  OPENPILOT_FINGERPRINTING_URL,
+  OPENPILOT_NIGHTLY_DEV_INSTALLER_URL,
+  SUNNYLINK_URL,
+  SUNNYPILOT_RELEASE_MICI_INSTALLER_URL,
+  SUNNYPILOT_URL,
+  SUNNYPILOT_VEHICLE_SETTINGS_URL,
+} from "./constants";
 import { decompressLog } from "./decompress";
 import { isInvalidCalibration } from "./format";
 import {
@@ -54,6 +74,80 @@ export interface LogReadFailure {
   message: string;
 }
 
+export interface SensitiveField<T> {
+  value: T;
+  redacted: string;
+}
+
+export interface CarFirmwareSummary {
+  ecu: number;
+  ecuName: string;
+  fwVersionHex: string;
+  fwVersionText: string;
+  address: number;
+  subAddress: number;
+  responseAddress: number;
+  request: string[];
+  brand: string;
+  bus: number;
+}
+
+export interface CarParamsSummary {
+  logUrl: string;
+  segment: number;
+  logMonoTime: bigint;
+  brand: string;
+  carFingerprint: string;
+  fuzzyFingerprint: boolean;
+  notCar: boolean;
+  carVin: SensitiveField<string> | null;
+  dashcamOnly: boolean;
+  passive: boolean;
+  openpilotLongitudinalControl: boolean;
+  fingerprintSource: number;
+  fingerprintSourceName: string;
+  carFw: CarFirmwareSummary[];
+}
+
+export interface OnroadEventSummary {
+  logUrl: string;
+  segment: number;
+  logMonoTime: bigint;
+  name: number;
+  nameText: string;
+}
+
+export interface CanEvidenceSummary {
+  src: number;
+  address: number;
+  dataLength: number;
+  count: number;
+  firstSegment: number;
+  lastSegment: number;
+}
+
+export interface Recommendation {
+  kind: "stock-openpilot" | "sunnypilot" | "hardcoded-fp";
+  title: string;
+  body: string;
+  links: Array<{ label: string; url: string }>;
+}
+
+export interface FingerprintScanResult {
+  routeName: string;
+  routeInfo: RouteInfo | null;
+  initData: InitDataMessage | null;
+  logSource: "qlogs" | "rlogs";
+  carParams: CarParamsSummary | null;
+  onroadEvents: OnroadEventSummary[];
+  canEvidence: CanEvidenceSummary[];
+  recommendations: Recommendation[];
+  readFailures: LogReadFailure[];
+  scannedSegments: number;
+  totalSegments: number;
+  resultType: "recognized" | "unrecognized" | "incomplete";
+}
+
 interface RouteLogContext {
   routeName: string;
   routeInfo: RouteInfo | null;
@@ -65,6 +159,10 @@ interface RouteLogContext {
 interface LogSegmentScan {
   calibrationMessages: CalibrationMessage[];
   deviceType: DeviceType | null;
+}
+
+interface FingerprintSegmentScan {
+  messages: FingerprintLogMessages;
 }
 
 export async function scanRouteForFirstValidCalibration(
@@ -203,6 +301,67 @@ export async function scanRouteForInvalidCalibration(
   throw new Error(`Scanned ${decodedSegments} uploaded ${logFileKind(context.source)} segment(s), but found no invalid or valid liveCalibration messages.`);
 }
 
+export async function scanRouteForFingerprintDebug(
+  input: string,
+  onProgress: (progress: ScanProgress) => void,
+): Promise<FingerprintScanResult> {
+  const context = await loadRouteLogContext(input, onProgress);
+  const readFailures: LogReadFailure[] = [];
+  const carParams: CarParamsSummary[] = [];
+  const onroadEvents: OnroadEventSummary[] = [];
+  const canEvidence = new Map<string, CanEvidenceSummary>();
+  let initData: InitDataMessage | null = null;
+  let decodedSegments = 0;
+
+  for (let index = 0; index < context.logUrls.length; index += 1) {
+    const logUrl = context.logUrls[index];
+    const segment = segmentFromUrl(logUrl);
+    try {
+      const segmentScan = await downloadFingerprintSegmentScan(logUrl, segment, index, context.logUrls.length, context.source, onProgress);
+      decodedSegments += 1;
+      initData ??= segmentScan.messages.initData;
+      context.routeInfo = routeInfoWithDeviceType(context.routeInfo, context.routeName, segmentScan.messages.deviceType);
+      carParams.push(...segmentScan.messages.carParams.map((message) => summarizeCarParams(message, logUrl, segment)));
+      onroadEvents.push(...segmentScan.messages.onroadEvents.map((message) => summarizeOnroadEvent(message, logUrl, segment)));
+      mergeCanEvidence(canEvidence, segmentScan.messages, segment);
+    } catch (error) {
+      const failure = { logUrl, segment, message: readableLogError(error) };
+      readFailures.push(failure);
+      onProgress({
+        phase: "decode",
+        message: `Could not read ${logFileKind(context.source)} segment ${segment}: ${failure.message}`,
+        current: index + 1,
+        total: context.logUrls.length,
+      });
+    }
+  }
+
+  const selectedCarParams = carParams.at(-1) ?? null;
+  const recognized = Boolean(selectedCarParams?.carFingerprint);
+  const resultType = readFailures.length > 0 ? "incomplete" : recognized ? "recognized" : "unrecognized";
+  onProgress({
+    phase: "done",
+    message: recognized
+      ? `Found ${selectedCarParams?.carFingerprint} after scanning ${decodedSegments} ${logFileKind(context.source)} segment(s).`
+      : `Built fingerprint evidence from ${decodedSegments} ${logFileKind(context.source)} segment(s).`,
+  });
+
+  return {
+    routeName: context.routeName,
+    routeInfo: context.routeInfo,
+    initData,
+    logSource: context.source,
+    carParams: selectedCarParams,
+    onroadEvents: dedupeEvents(onroadEvents),
+    canEvidence: [...canEvidence.values()].sort((a, b) => a.src - b.src || a.address - b.address || a.dataLength - b.dataLength),
+    recommendations: buildRecommendations(selectedCarParams, onroadEvents, initData, readFailures),
+    readFailures,
+    scannedSegments: decodedSegments,
+    totalSegments: context.logUrls.length,
+    resultType,
+  };
+}
+
 async function loadRouteLogContext(
   input: string,
   onProgress: (progress: ScanProgress) => void,
@@ -257,6 +416,33 @@ async function downloadLogSegmentScan(
   };
 }
 
+async function downloadFingerprintSegmentScan(
+  logUrl: string,
+  segment: number,
+  index: number,
+  total: number,
+  source: "qlogs" | "rlogs",
+  onProgress: (progress: ScanProgress) => void,
+): Promise<FingerprintSegmentScan> {
+  onProgress({
+    phase: "download",
+    message: `Downloading ${logFileKind(source)} segment ${segment} (${index + 1}/${total})`,
+    current: index + 1,
+    total,
+  });
+
+  const compressed = new Uint8Array(await (await fetchLog(logUrl)).arrayBuffer());
+  onProgress({
+    phase: "decode",
+    message: `Decoding fingerprint evidence in segment ${segment}`,
+    current: index + 1,
+    total,
+  });
+
+  const decompressed = decompressLog(compressed, logUrl);
+  return { messages: findFingerprintLogMessages(decompressed) };
+}
+
 async function fetchLog(logUrl: string): Promise<Response> {
   const response = await fetch(logUrl);
   if (!response.ok) {
@@ -302,4 +488,151 @@ function previewForSegment(
       .filter(({ segment }) => Number.isFinite(segment))
       .sort((a, b) => Math.abs(a.segment - preferredSegment) - Math.abs(b.segment - preferredSegment))[0] ?? null;
   return nearest ? { logUrl: nearest.url, segment: nearest.segment, reason } : null;
+}
+
+function summarizeCarParams(message: CarParamsMessage, logUrl: string, segment: number): CarParamsSummary {
+  return {
+    logUrl,
+    segment,
+    logMonoTime: message.logMonoTime,
+    brand: message.brand,
+    carFingerprint: message.carFingerprint,
+    fuzzyFingerprint: message.fuzzyFingerprint,
+    notCar: message.notCar,
+    carVin: message.carVin ? { value: message.carVin, redacted: redactVin(message.carVin) } : null,
+    dashcamOnly: message.dashcamOnly,
+    passive: message.passive,
+    openpilotLongitudinalControl: message.openpilotLongitudinalControl,
+    fingerprintSource: message.fingerprintSource,
+    fingerprintSourceName: message.fingerprintSourceName,
+    carFw: message.carFw.map((fw) => ({
+      ecu: fw.ecu,
+      ecuName: fw.ecuName,
+      fwVersionHex: fw.fwVersionHex,
+      fwVersionText: fw.fwVersionText,
+      address: fw.address,
+      subAddress: fw.subAddress,
+      responseAddress: fw.responseAddress,
+      request: fw.request,
+      brand: fw.brand,
+      bus: fw.bus,
+    })),
+  };
+}
+
+function summarizeOnroadEvent(message: OnroadEventMessage, logUrl: string, segment: number): OnroadEventSummary {
+  return {
+    logUrl,
+    segment,
+    logMonoTime: message.logMonoTime,
+    name: message.name,
+    nameText: message.nameText,
+  };
+}
+
+function mergeCanEvidence(target: Map<string, CanEvidenceSummary>, messages: FingerprintLogMessages, segment: number): void {
+  for (const can of messages.canMessages) {
+    const key = `${can.src}:${can.address}:${can.dataLength}`;
+    const existing = target.get(key);
+    if (existing) {
+      existing.count += 1;
+      existing.lastSegment = Math.max(existing.lastSegment, segment);
+      existing.firstSegment = Math.min(existing.firstSegment, segment);
+    } else {
+      target.set(key, {
+        src: can.src,
+        address: can.address,
+        dataLength: can.dataLength,
+        count: 1,
+        firstSegment: segment,
+        lastSegment: segment,
+      });
+    }
+  }
+}
+
+function dedupeEvents(events: OnroadEventSummary[]): OnroadEventSummary[] {
+  const seen = new Set<string>();
+  const deduped: OnroadEventSummary[] = [];
+  for (const event of events) {
+    const key = `${event.segment}:${event.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(event);
+  }
+  return deduped;
+}
+
+function buildRecommendations(
+  carParams: CarParamsSummary | null,
+  events: OnroadEventSummary[],
+  initData: InitDataMessage | null,
+  readFailures: LogReadFailure[],
+): Recommendation[] {
+  const recommendations: Recommendation[] = [];
+  const recognized = Boolean(carParams?.carFingerprint);
+  const unrecognizedEvent = events.some((event) => event.nameText === "carUnrecognized" || event.nameText === "startupNoCar" || event.nameText === "dashcamMode");
+  const sunnyish = isSunnyPilotMetadata(initData);
+
+  recommendations.push({
+    kind: "stock-openpilot",
+    title: recognized ? "Stock openpilot evidence" : "Stock openpilot next step",
+    body: recognized
+      ? `Route logged ${carParams?.carFingerprint}; use the firmware and CAN evidence below if you are comparing against upstream fingerprints.`
+      : "If this was stock openpilot, try current nightly-dev first and share this report with the brand channel or an upstream fingerprinting issue.",
+    links: [
+      { label: "openpilot fingerprinting guide", url: OPENPILOT_FINGERPRINTING_URL },
+      { label: "nightly-dev installer", url: OPENPILOT_NIGHTLY_DEV_INSTALLER_URL },
+    ],
+  });
+
+  recommendations.push({
+    kind: "sunnypilot",
+    title: sunnyish || unrecognizedEvent ? "SunnyPilot car selector" : "SunnyPilot option",
+    body: "On SunnyPilot, use SunnyLink or the vehicle settings car selector to manually select the vehicle when automatic recognition is not enough. comma four users may need SunnyLink for selection.",
+    links: [
+      { label: "SunnyLink", url: SUNNYLINK_URL },
+      { label: "SunnyPilot vehicle settings", url: SUNNYPILOT_VEHICLE_SETTINGS_URL },
+      { label: "SunnyPilot", url: SUNNYPILOT_URL },
+      { label: "release-mici installer", url: SUNNYPILOT_RELEASE_MICI_INSTALLER_URL },
+    ],
+  });
+
+  if (recognized && carParams) {
+    recommendations.push({
+      kind: "hardcoded-fp",
+      title: "Hardcoded-fp last resort",
+      body: `Because this route logged ${carParams.carFingerprint}, you can search the hardcoded-fp branch index for the matching generated branch. Treat this as prescription-only temporary debugging, not a fix to upstream fingerprinting.`,
+      links: [
+        { label: "hardcoded-fp branch index", url: HARDCODED_FP_BRANCH_INDEX_URL },
+        { label: "hardcoded-fp repo", url: HARDCODED_FP_REPO_URL },
+        { label: "likely nightly installer pattern", url: `https://installer.comma.ai/hardcoded-fp/nightly-${branchSlug(carParams.carFingerprint)}` },
+      ],
+    });
+  }
+
+  if (readFailures.length > 0) {
+    recommendations.unshift({
+      kind: "stock-openpilot",
+      title: "Scan incomplete",
+      body: `${readFailures.length} segment(s) could not be decoded. Re-run with uploaded qlogs/rlogs available before treating missing evidence as meaningful.`,
+      links: [],
+    });
+  }
+
+  return recommendations;
+}
+
+function redactVin(vin: string): string {
+  if (vin.length <= 6) return "redacted";
+  return `${vin.slice(0, 3)}${"*".repeat(Math.max(4, vin.length - 6))}${vin.slice(-3)}`;
+}
+
+function isSunnyPilotMetadata(initData: InitDataMessage | null): boolean {
+  const haystack = [initData?.gitRemote, initData?.gitBranch, initData?.version, initData?.gitSrcCommit].join(" ").toLowerCase();
+  return haystack.includes("sunnypilot") || haystack.includes("sunny");
+}
+
+function branchSlug(fingerprint: string): string {
+  return fingerprint.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
