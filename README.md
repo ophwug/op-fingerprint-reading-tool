@@ -15,9 +15,10 @@ decodes just enough Cap'n Proto to summarize:
 - compact CAN evidence grouped by bus/source, address, message length, count,
   and first/last segment
 
-The report shows debugging options separately for stock openpilot, SunnyPilot's
-SunnyLink/car selector path, and hardcoded-fp as a last-resort debugging aid when
-a logged fingerprint is already known.
+The report shows debugging options separately for stock openpilot and
+SunnyPilot's SunnyLink/car selector path. When a route does not fingerprint, it
+also mentions hardcoded-fp as non-prescriptive fork context. Firmware evidence
+is copy-pastable for human debugging.
 
 ## Run locally
 

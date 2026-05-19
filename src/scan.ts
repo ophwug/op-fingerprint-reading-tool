@@ -129,7 +129,7 @@ export interface CanEvidenceSummary {
 }
 
 export interface Recommendation {
-  kind: "stock-openpilot" | "sunnypilot" | "hardcoded-fp";
+  kind: "stock-openpilot" | "sunnypilot" | "fork-context";
   title: string;
   body: string;
   links: Array<{ label: string; url: string }>;
@@ -603,15 +603,14 @@ function buildRecommendations(
     ],
   });
 
-  if (recognized && carParams) {
+  if (!recognized) {
     recommendations.push({
-      kind: "hardcoded-fp",
-      title: "Hardcoded-fp last resort",
-      body: `Because this route logged ${carParams.carFingerprint}, you can search the hardcoded-fp branch index for the matching generated branch. Treat this as prescription-only temporary debugging, not a fix to upstream fingerprinting.`,
+      kind: "fork-context",
+      title: "Fork context",
+      body: "hardcoded-fp can be useful context when someone is deliberately testing fixed fingerprints, but this report does not choose or recommend a hardcoded branch. Use the evidence here with human review.",
       links: [
         { label: "hardcoded-fp branch index", url: HARDCODED_FP_BRANCH_INDEX_URL },
         { label: "hardcoded-fp repo", url: HARDCODED_FP_REPO_URL },
-        { label: "likely nightly installer pattern", url: `https://installer.comma.ai/hardcoded-fp/nightly-${branchSlug(carParams.carFingerprint)}` },
       ],
     });
   }
@@ -636,10 +635,6 @@ function redactVin(vin: string): string {
 function isSunnyPilotMetadata(initData: InitDataMessage | null): boolean {
   const haystack = [initData?.gitRemote, initData?.gitBranch, initData?.version, initData?.gitSrcCommit].join(" ").toLowerCase();
   return haystack.includes("sunnypilot") || haystack.includes("sunny");
-}
-
-function branchSlug(fingerprint: string): string {
-  return fingerprint.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 function pythonFirmwareSnippet(ecuName: string, address: number, subAddress: number, fwVersionPython: string): string {

@@ -3,7 +3,6 @@ import { completeAuthCallback, isSignedIn, setAccessToken, signOut } from "./aut
 import {
   COMMA_JWT_PORTAL_URL,
   GITHUB_REPO_URL,
-  HARDCODED_FP_BRANCH_INDEX_URL,
   OPENPILOT_FINGERPRINTING_URL,
   OPENPILOT_MASTER_SOURCES,
   SUNNYLINK_URL,
@@ -71,7 +70,7 @@ app.innerHTML = `
       </article>
       <article>
         <h2>Debug paths</h2>
-        <p>For stock openpilot, start with the <a href="${OPENPILOT_FINGERPRINTING_URL}" target="_blank" rel="noreferrer">fingerprinting guide</a> and nightly-dev. For SunnyPilot, use <a href="${SUNNYLINK_URL}" target="_blank" rel="noreferrer">SunnyLink</a> or the <a href="${SUNNYPILOT_VEHICLE_SETTINGS_URL}" target="_blank" rel="noreferrer">vehicle selector</a>. Use <a href="${HARDCODED_FP_BRANCH_INDEX_URL}" target="_blank" rel="noreferrer">hardcoded-fp</a> only as temporary debugging help.</p>
+        <p>For stock openpilot, start with the <a href="${OPENPILOT_FINGERPRINTING_URL}" target="_blank" rel="noreferrer">fingerprinting guide</a> and nightly-dev. For SunnyPilot, use <a href="${SUNNYLINK_URL}" target="_blank" rel="noreferrer">SunnyLink</a> or the <a href="${SUNNYPILOT_VEHICLE_SETTINGS_URL}" target="_blank" rel="noreferrer">vehicle selector</a>. The report below is meant to package the route evidence cleanly for human debugging.</p>
       </article>
     </section>
 

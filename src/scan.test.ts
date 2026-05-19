@@ -162,10 +162,10 @@ describe("full route scan", () => {
     expect(result.carParams?.carFw[0].fwVersionHex).toBe("48 44 41 32");
     expect(result.carParams?.carFw[0].pythonSnippet).toBe("(Ecu.fwdCamera, 0x7c4, None): [\n  b'HDA2',\n],");
     expect(result.canEvidence).toMatchObject([{ src: 1, address: 0x5a0, dataLength: 8, count: 1 }]);
-    expect(result.recommendations.map((recommendation) => recommendation.kind)).toContain("hardcoded-fp");
+    expect(result.recommendations.map((recommendation) => recommendation.kind)).toEqual(["stock-openpilot", "sunnypilot"]);
   });
 
-  it("suggests stock and SunnyPilot paths for unrecognized routes", async () => {
+  it("suggests stock, SunnyPilot, and fork context paths for unrecognized routes", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -197,8 +197,9 @@ describe("full route scan", () => {
     const result = await scanRouteForFingerprintDebug("test|route", () => {});
 
     expect(result.resultType).toBe("unrecognized");
-    expect(result.recommendations.map((recommendation) => recommendation.kind)).toEqual(["stock-openpilot", "sunnypilot"]);
+    expect(result.recommendations.map((recommendation) => recommendation.kind)).toEqual(["stock-openpilot", "sunnypilot", "fork-context"]);
     expect(result.recommendations[1].body).toContain("SunnyLink");
+    expect(result.recommendations[2].body).toContain("does not choose or recommend");
   });
 
   it("samples only the first log segment for fingerprint debugging", async () => {
