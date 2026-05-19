@@ -43,7 +43,6 @@ export interface CarFirmwareMessage {
   ecu: number;
   ecuName: string;
   fwVersionBytes: number[];
-  fwVersionHex: string;
   fwVersionPython: string;
   fwVersionText: string;
   address: number;
@@ -393,7 +392,6 @@ function readCarFirmwareList(carParams: StructRef & { segmentIndex: number }): C
       ecu: getUint16ByIndex(carFw, CAR_FW_DATA_FIELDS.ecu),
       ecuName: ecuName(getUint16ByIndex(carFw, CAR_FW_DATA_FIELDS.ecu)),
       fwVersionBytes: [...fwVersionBytes],
-      fwVersionHex: formatHexBytes(fwVersionBytes),
       fwVersionPython: formatPythonBytes(fwVersionBytes),
       fwVersionText: formatPrintableBytes(fwVersionBytes),
       address: getUint32ByIndex(carFw, CAR_FW_DATA_FIELDS.address),

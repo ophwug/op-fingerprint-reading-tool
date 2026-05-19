@@ -399,6 +399,66 @@ footer {
   margin: 8px 0 0;
 }
 
+.firmware-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.firmware-card {
+  border: 1px solid #d8e0dc;
+  border-radius: 8px;
+  padding: 14px;
+  background: #f8faf9;
+}
+
+.firmware-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  align-items: baseline;
+}
+
+.firmware-card-header h4,
+.firmware-copy-grid h5 {
+  margin: 0;
+  color: #132023;
+}
+
+.firmware-card-header h4 {
+  font-size: 1rem;
+}
+
+.firmware-card-header span {
+  color: #5b6d69;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.firmware-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+}
+
+.firmware-meta div {
+  min-width: 0;
+}
+
+.firmware-copy-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.firmware-copy-grid h5 {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .table-wrap {
   margin-top: 12px;
   border: 1px solid #d8e0dc;
@@ -441,7 +501,8 @@ td code {
   display: grid;
   gap: 8px;
   align-content: start;
-  min-width: 210px;
+  min-width: 0;
+  margin-top: 6px;
 }
 
 .copy-button {
@@ -644,13 +705,16 @@ footer {
   .token-row,
   .info-grid,
   .recommendation-grid,
+  .firmware-meta,
+  .firmware-copy-grid,
   .result-list div,
   .limits div {
     grid-template-columns: 1fr;
   }
 
   .masthead,
-  .result-header {
+  .result-header,
+  .firmware-card-header {
     display: grid;
   }
 
@@ -791,6 +855,20 @@ footer {
 
   .recommendation p {
     color: #cbd5d1;
+  }
+
+  .firmware-card {
+    border-color: #34403c;
+    background: #0b100e;
+  }
+
+  .firmware-card-header h4,
+  .firmware-copy-grid h5 {
+    color: #f4f7f5;
+  }
+
+  .firmware-card-header span {
+    color: #b7c4bf;
   }
 
   .table-wrap {

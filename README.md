@@ -9,8 +9,8 @@ decodes just enough Cap'n Proto to summarize:
 
 - `CarParams`, including the selected `carFingerprint`, fingerprint source, mode
   flags, redacted VIN, and `carFw`
-- public raw firmware bytes from `carFw.fwVersion`, plus Python `bytes`
-  literals and `FW_VERSIONS`-style snippets for opendbc/openpilot firmware files
+- firmware versions as Python `bytes` literals and `FW_VERSIONS`-style snippets
+  for opendbc/openpilot firmware files
 - startup and recognition events such as `carUnrecognized` and `dashcamMode`
 - compact CAN evidence grouped by bus/source, address, message length, count,
   and first/last segment

@@ -27,7 +27,6 @@ describe("Cap'n Proto log parsing", () => {
     expect(messages.carParams[0].carVin).toBe("KNAGT4LEXLA000001");
     expect(messages.carParams[0].carFw[0]).toMatchObject({
       ecuName: "fwdCamera",
-      fwVersionHex: "48 44 41 32 2d 31 32 33",
       fwVersionPython: "b'HDA2-123'",
       fwVersionText: "HDA2-123",
       address: 0x7c4,

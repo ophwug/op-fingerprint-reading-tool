@@ -298,47 +298,43 @@ function renderCarParams(result: FingerprintScanResult): string {
         <div><dt>Log mono time</dt><dd>${formatLogMonoTime(car.logMonoTime)}</dd></div>
         <div><dt>Source segment</dt><dd>${car.segment}</dd></div>
       </dl>
-      ${renderFirmwareTable(car.carFw)}
+      ${renderFirmwareList(car.carFw)}
     </section>
   `;
 }
 
-function renderFirmwareTable(carFw: NonNullable<FingerprintScanResult["carParams"]>["carFw"]): string {
+function renderFirmwareList(carFw: NonNullable<FingerprintScanResult["carParams"]>["carFw"]): string {
   if (carFw.length === 0) return `<p class="muted section-note">No firmware entries were logged in CarParams.</p>`;
   return `
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>ECU</th>
-            <th>Address</th>
-            <th>Bus</th>
-            <th>Brand</th>
-            <th>Raw fwVersion bytes</th>
-            <th>Python bytes</th>
-            <th>FW_VERSIONS snippet</th>
-            <th>Text view</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${carFw
-            .map(
-              (fw) => `
-                <tr>
-                  <td>${escapeHtml(fw.ecuName)} (${fw.ecu})</td>
-                  <td>${formatAddress(fw.address)}${fw.subAddress ? ` / sub ${fw.subAddress}` : ""}${fw.responseAddress ? ` / resp ${formatAddress(fw.responseAddress)}` : ""}</td>
-                  <td>${fw.bus}</td>
-                  <td>${escapeHtml(fw.brand || "n/a")}</td>
-                  <td><code>${escapeHtml(fw.fwVersionHex || "empty")}</code></td>
-                  <td>${renderCopyableCode(fw.fwVersionPython)}</td>
-                  <td>${renderCopyableCode(fw.pythonSnippet, true)}</td>
-                  <td>${escapeHtml(fw.fwVersionText || "n/a")}</td>
-                </tr>
-              `,
-            )
-            .join("")}
-        </tbody>
-      </table>
+    <div class="firmware-list">
+      ${carFw
+        .map(
+          (fw) => `
+            <article class="firmware-card">
+              <div class="firmware-card-header">
+                <h4>${escapeHtml(fw.ecuName)} (${fw.ecu})</h4>
+                <span>${escapeHtml(fw.brand || "brand n/a")} · bus ${fw.bus}</span>
+              </div>
+              <dl class="firmware-meta">
+                <div><dt>Address</dt><dd>${formatAddress(fw.address)}</dd></div>
+                <div><dt>Sub address</dt><dd>${fw.subAddress ? `0x${fw.subAddress.toString(16)}` : "None"}</dd></div>
+                <div><dt>Response</dt><dd>${fw.responseAddress ? formatAddress(fw.responseAddress) : "n/a"}</dd></div>
+                <div><dt>Text</dt><dd>${escapeHtml(fw.fwVersionText || "n/a")}</dd></div>
+              </dl>
+              <div class="firmware-copy-grid">
+                <section>
+                  <h5>Python bytes</h5>
+                  ${renderCopyableCode(fw.fwVersionPython)}
+                </section>
+                <section>
+                  <h5>FW_VERSIONS snippet</h5>
+                  ${renderCopyableCode(fw.pythonSnippet, true)}
+                </section>
+              </div>
+            </article>
+          `,
+        )
+        .join("")}
     </div>
   `;
 }

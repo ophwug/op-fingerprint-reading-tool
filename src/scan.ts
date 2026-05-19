@@ -82,7 +82,6 @@ export interface SensitiveField<T> {
 export interface CarFirmwareSummary {
   ecu: number;
   ecuName: string;
-  fwVersionHex: string;
   fwVersionPython: string;
   pythonSnippet: string;
   fwVersionText: string;
@@ -511,7 +510,6 @@ function summarizeCarParams(message: CarParamsMessage, logUrl: string, segment: 
     carFw: message.carFw.map((fw) => ({
       ecu: fw.ecu,
       ecuName: fw.ecuName,
-      fwVersionHex: fw.fwVersionHex,
       fwVersionPython: fw.fwVersionPython,
       pythonSnippet: pythonFirmwareSnippet(fw.ecuName, fw.address, fw.subAddress, fw.fwVersionPython),
       fwVersionText: fw.fwVersionText,
