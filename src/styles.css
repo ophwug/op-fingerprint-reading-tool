@@ -437,6 +437,22 @@ td code {
   white-space: pre-wrap;
 }
 
+.copy-cell {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+  min-width: 210px;
+}
+
+.copy-button {
+  width: max-content;
+  min-height: 30px;
+  padding: 0 10px;
+  background: #d9e3df;
+  color: #244540;
+  font-size: 0.82rem;
+}
+
 .event-list {
   display: flex;
   flex-wrap: wrap;
@@ -789,6 +805,11 @@ footer {
   th {
     color: #cbd5d1;
     background: #111a17;
+  }
+
+  .copy-button {
+    background: #17241f;
+    color: #d9f8ee;
   }
 
   .event-chip {

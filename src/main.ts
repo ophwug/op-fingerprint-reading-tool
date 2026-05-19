@@ -120,6 +120,24 @@ authPanel.addEventListener("click", (event) => {
   }
 });
 
+resultPanel.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  const button = target.closest<HTMLButtonElement>("[data-copy]");
+  if (!button) return;
+
+  const value = button.dataset.copy ?? "";
+  void copyText(value).then((copied) => {
+    const original = button.textContent ?? "Copy";
+    button.textContent = copied ? "Copied" : "Copy failed";
+    button.disabled = true;
+    window.setTimeout(() => {
+      button.textContent = original;
+      button.disabled = false;
+    }, 1200);
+  });
+});
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   setBusy(true);
@@ -312,8 +330,8 @@ function renderFirmwareTable(carFw: NonNullable<FingerprintScanResult["carParams
                   <td>${fw.bus}</td>
                   <td>${escapeHtml(fw.brand || "n/a")}</td>
                   <td><code>${escapeHtml(fw.fwVersionHex || "empty")}</code></td>
-                  <td><code>${escapeHtml(fw.fwVersionPython)}</code></td>
-                  <td><pre><code>${escapeHtml(fw.pythonSnippet)}</code></pre></td>
+                  <td>${renderCopyableCode(fw.fwVersionPython)}</td>
+                  <td>${renderCopyableCode(fw.pythonSnippet, true)}</td>
                   <td>${escapeHtml(fw.fwVersionText || "n/a")}</td>
                 </tr>
               `,
@@ -321,6 +339,16 @@ function renderFirmwareTable(carFw: NonNullable<FingerprintScanResult["carParams
             .join("")}
         </tbody>
       </table>
+    </div>
+  `;
+}
+
+function renderCopyableCode(value: string, multiline = false): string {
+  const code = multiline ? `<pre><code>${escapeHtml(value)}</code></pre>` : `<code>${escapeHtml(value)}</code>`;
+  return `
+    <div class="copy-cell">
+      ${code}
+      <button class="copy-button" type="button" data-copy="${escapeHtml(value)}">Copy</button>
     </div>
   `;
 }
@@ -422,4 +450,13 @@ function escapeHtml(value: string): string {
     };
     return entities[char];
   });
+}
+
+async function copyText(value: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
