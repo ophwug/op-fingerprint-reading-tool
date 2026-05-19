@@ -44,6 +44,7 @@ export interface CarFirmwareMessage {
   ecuName: string;
   fwVersionBytes: number[];
   fwVersionHex: string;
+  fwVersionPython: string;
   fwVersionText: string;
   address: number;
   subAddress: number;
@@ -393,6 +394,7 @@ function readCarFirmwareList(carParams: StructRef & { segmentIndex: number }): C
       ecuName: ecuName(getUint16ByIndex(carFw, CAR_FW_DATA_FIELDS.ecu)),
       fwVersionBytes: [...fwVersionBytes],
       fwVersionHex: formatHexBytes(fwVersionBytes),
+      fwVersionPython: formatPythonBytes(fwVersionBytes),
       fwVersionText: formatPrintableBytes(fwVersionBytes),
       address: getUint32ByIndex(carFw, CAR_FW_DATA_FIELDS.address),
       subAddress: getUint8ByIndex(carFw, CAR_FW_DATA_FIELDS.subAddress),
@@ -649,6 +651,18 @@ function formatPrintableBytes(bytes: Uint8Array): string {
   const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
   const printable = text.replace(/\0/g, "").replace(/[^\x20-\x7e]/g, ".");
   return printable.trim();
+}
+
+function formatPythonBytes(bytes: Uint8Array): string {
+  const escaped = [...bytes]
+    .map((byte) => {
+      if (byte === 0x27) return "\\'";
+      if (byte === 0x5c) return "\\\\";
+      if (byte >= 0x20 && byte <= 0x7e) return String.fromCharCode(byte);
+      return `\\x${byte.toString(16).padStart(2, "0")}`;
+    })
+    .join("");
+  return `b'${escaped}'`;
 }
 
 function ecuName(value: number): string {

@@ -135,6 +135,7 @@ describe("full route scan", () => {
               ecuName: "fwdCamera",
               fwVersionBytes: [72, 68, 65, 50],
               fwVersionHex: "48 44 41 32",
+              fwVersionPython: "b'HDA2'",
               fwVersionText: "HDA2",
               address: 0x7c4,
               subAddress: 0,
@@ -159,6 +160,7 @@ describe("full route scan", () => {
       redacted: "KNA***********001",
     });
     expect(result.carParams?.carFw[0].fwVersionHex).toBe("48 44 41 32");
+    expect(result.carParams?.carFw[0].pythonSnippet).toBe("(Ecu.fwdCamera, 0x7c4, None): [\n  b'HDA2',\n],");
     expect(result.canEvidence).toMatchObject([{ src: 1, address: 0x5a0, dataLength: 8, count: 1 }]);
     expect(result.recommendations.map((recommendation) => recommendation.kind)).toContain("hardcoded-fp");
   });

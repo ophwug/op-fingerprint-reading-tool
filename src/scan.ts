@@ -83,6 +83,8 @@ export interface CarFirmwareSummary {
   ecu: number;
   ecuName: string;
   fwVersionHex: string;
+  fwVersionPython: string;
+  pythonSnippet: string;
   fwVersionText: string;
   address: number;
   subAddress: number;
@@ -510,6 +512,8 @@ function summarizeCarParams(message: CarParamsMessage, logUrl: string, segment: 
       ecu: fw.ecu,
       ecuName: fw.ecuName,
       fwVersionHex: fw.fwVersionHex,
+      fwVersionPython: fw.fwVersionPython,
+      pythonSnippet: pythonFirmwareSnippet(fw.ecuName, fw.address, fw.subAddress, fw.fwVersionPython),
       fwVersionText: fw.fwVersionText,
       address: fw.address,
       subAddress: fw.subAddress,
@@ -636,4 +640,10 @@ function isSunnyPilotMetadata(initData: InitDataMessage | null): boolean {
 
 function branchSlug(fingerprint: string): string {
   return fingerprint.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function pythonFirmwareSnippet(ecuName: string, address: number, subAddress: number, fwVersionPython: string): string {
+  const ecu = ecuName.startsWith("ecu ") ? `Ecu.unknown  # raw ecu ${ecuName.slice(4)}` : `Ecu.${ecuName}`;
+  const subAddressText = subAddress === 0 ? "None" : `0x${subAddress.toString(16)}`;
+  return `(${ecu}, 0x${address.toString(16)}, ${subAddressText}): [\n  ${fwVersionPython},\n],`;
 }

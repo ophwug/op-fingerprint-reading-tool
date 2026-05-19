@@ -298,6 +298,8 @@ function renderFirmwareTable(carFw: NonNullable<FingerprintScanResult["carParams
             <th>Bus</th>
             <th>Brand</th>
             <th>Raw fwVersion bytes</th>
+            <th>Python bytes</th>
+            <th>FW_VERSIONS snippet</th>
             <th>Text view</th>
           </tr>
         </thead>
@@ -311,6 +313,8 @@ function renderFirmwareTable(carFw: NonNullable<FingerprintScanResult["carParams
                   <td>${fw.bus}</td>
                   <td>${escapeHtml(fw.brand || "n/a")}</td>
                   <td><code>${escapeHtml(fw.fwVersionHex || "empty")}</code></td>
+                  <td><code>${escapeHtml(fw.fwVersionPython)}</code></td>
+                  <td><pre><code>${escapeHtml(fw.pythonSnippet)}</code></pre></td>
                   <td>${escapeHtml(fw.fwVersionText || "n/a")}</td>
                 </tr>
               `,
