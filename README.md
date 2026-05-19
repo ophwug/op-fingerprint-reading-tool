@@ -15,7 +15,7 @@ decodes just enough Cap'n Proto to summarize:
 - compact CAN evidence grouped by bus/source, address, message length, count,
   and first/last segment
 
-The report suggests next steps separately for stock openpilot, SunnyPilot's
+The report shows debugging options separately for stock openpilot, SunnyPilot's
 SunnyLink/car selector path, and hardcoded-fp as a last-resort debugging aid when
 a logged fingerprint is already known.
 

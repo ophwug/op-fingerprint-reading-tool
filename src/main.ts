@@ -240,7 +240,7 @@ function renderRouteVersion(result: FingerprintScanResult): string {
 function renderRecommendations(recommendations: Recommendation[]): string {
   return `
     <section class="report-section">
-      <h3>Recommended next steps</h3>
+      <h3>Debugging options</h3>
       <div class="recommendation-grid">
         ${recommendations
           .map(
