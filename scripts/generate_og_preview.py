@@ -56,17 +56,13 @@ def pill(draw: ImageDraw.ImageDraw, xy: tuple[int, int], value: str, size: int, 
     text(draw, (x + padding_x, y + padding_y - 2), value, size, text_fill, True)
 
 
-def tolerance_row(draw: ImageDraw.ImageDraw, y: int, label: str, value_pct: float, value: str) -> None:
+def evidence_row(draw: ImageDraw.ImageDraw, y: int, label: str, value: str, accent: str = "#9ee6c1") -> None:
     left = 720
     right = 1080
-    track_y = y + 52
-    text(draw, (left, y), label, 28, "#eaf4ef", True)
-    text(draw, (right - 92, y), value, 24, "#9ee6c1", True)
-    draw.rounded_rectangle((left, track_y, right, track_y + 18), radius=9, fill="#274b46", outline="#58706c", width=2)
-    marker_x = left + int((right - left) * value_pct)
-    draw.ellipse((marker_x - 16, track_y - 7, marker_x + 16, track_y + 25), fill="#9ee6c1", outline="#ffffff", width=4)
-    text(draw, (left, track_y + 30), "min", 20, "#91a39f", True)
-    text(draw, (right - 38, track_y + 30), "max", 20, "#91a39f", True)
+    draw.rounded_rectangle((left, y, right, y + 72), radius=14, fill="#17272a", outline="#3a5550", width=2)
+    draw.ellipse((left + 22, y + 25, left + 44, y + 47), fill=accent)
+    text(draw, (left + 60, y + 15), label, 22, "#cfe0da", True)
+    fitted_text(draw, (left + 60, y + 42), value, 18, right - left - 84, "#f7fbf9", True, min_size=14)
 
 
 def main() -> None:
@@ -77,17 +73,18 @@ def main() -> None:
     draw.rounded_rectangle((44, 44, WIDTH - 44, HEIGHT - 44), radius=30, fill="#172226")
     pill(draw, (80, 82), "openpilot route utility", 21, "#d9f2e7", "#173d39")
 
-    text(draw, (80, 166), "Invalid", 70, "#f7fbf9", True)
-    text(draw, (80, 242), "calibration", 70, "#f7fbf9", True)
-    text(draw, (80, 318), "scanner", 70, "#f7fbf9", True)
-    text(draw, (82, 420), "Quick look for current tolerance.", 29, "#cfe0da", False)
-    text(draw, (82, 462), "Full qlog scan for invalid calibration.", 29, "#cfe0da", False)
+    text(draw, (80, 162), "Fingerprint", 66, "#f7fbf9", True)
+    text(draw, (80, 236), "route", 66, "#f7fbf9", True)
+    text(draw, (80, 310), "debugger", 66, "#f7fbf9", True)
+    text(draw, (82, 414), "Scan public routes for CarParams,", 27, "#cfe0da", False)
+    text(draw, (82, 454), "firmware bytes, startup events,", 27, "#cfe0da", False)
+    text(draw, (82, 494), "and compact CAN evidence.", 27, "#cfe0da", False)
 
     draw.rounded_rectangle((80, 530, 600, 582), radius=26, fill="#244540")
     fitted_text(
         draw,
         (108, 543),
-        "ophwug.github.io/op-calibration-reading-tool",
+        "ophwug.github.io/op-fingerprint-reading-tool",
         21,
         464,
         "#9ee6c1",
@@ -96,9 +93,10 @@ def main() -> None:
     )
 
     draw.rounded_rectangle((682, 130, 1120, 500), radius=24, fill="#203034", outline="#3a5550", width=2)
-    text(draw, (720, 176), "Tolerance landing", 33, "#f7fbf9", True)
-    tolerance_row(draw, 250, "Pitch", 0.93, "9.44 deg")
-    tolerance_row(draw, 372, "Yaw", 0.53, "0.26 deg")
+    text(draw, (720, 176), "Fingerprint evidence", 33, "#f7fbf9", True)
+    evidence_row(draw, 242, "CarParams", "TOYOTA_COROLLA_TSS2")
+    evidence_row(draw, 326, "Firmware", "FW_VERSIONS-ready bytes", "#b7d7ff")
+    evidence_row(draw, 410, "CAN messages", "bus, address, length, count", "#ffd38f")
 
     image.save(OUT, "PNG", optimize=True)
 
