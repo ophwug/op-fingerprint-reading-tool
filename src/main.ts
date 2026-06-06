@@ -275,8 +275,16 @@ async function initializeFromUrl(): Promise<void> {
 function renderResult(result: FingerprintScanResult): void {
   const car = result.carParams;
   const recognized = Boolean(car?.carFingerprint);
-  const badgeClass = recognized && result.resultType !== "incomplete" ? "ok" : "warn";
-  const badgeText = result.resultType === "incomplete" ? "scan incomplete" : recognized ? "recognized" : "needs fingerprint help";
+  const missingFirmware = Boolean(car && car.carFw.length === 0);
+  const badgeClass = recognized && result.resultType !== "incomplete" && !missingFirmware ? "ok" : "warn";
+  const badgeText =
+    result.resultType === "incomplete"
+      ? "scan incomplete"
+      : missingFirmware
+        ? "firmware missing"
+        : recognized
+          ? "recognized"
+          : "needs fingerprint help";
 
   resultPanel.hidden = false;
   resultPanel.innerHTML = `
@@ -360,7 +368,14 @@ function renderCarParams(result: FingerprintScanResult): string {
 }
 
 function renderFirmwareList(carFw: NonNullable<FingerprintScanResult["carParams"]>["carFw"]): string {
-  if (carFw.length === 0) return `<p class="muted section-note">No firmware entries were logged in CarParams.</p>`;
+  if (carFw.length === 0) {
+    return `
+      <section class="firmware-error" aria-live="polite">
+        <h4>No car firmware found</h4>
+        <p>CarParams logged zero <code>carFw</code> entries. Treat this route as missing firmware evidence, even if a fingerprint name was logged.</p>
+      </section>
+    `;
+  }
   return `
     <div class="firmware-list">
       ${carFw

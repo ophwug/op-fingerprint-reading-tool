@@ -403,6 +403,24 @@ footer {
   margin: 8px 0 0;
 }
 
+.firmware-error {
+  margin-top: 14px;
+  border: 1px solid #d15f42;
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: #fff1ec;
+}
+
+.firmware-error h4 {
+  margin: 0;
+  color: #7b2717;
+}
+
+.firmware-error p {
+  margin: 8px 0 0;
+  color: #653428;
+}
+
 .firmware-list {
   display: grid;
   gap: 12px;
@@ -864,6 +882,19 @@ footer {
   .firmware-card {
     border-color: #34403c;
     background: #0b100e;
+  }
+
+  .firmware-error {
+    border-color: #9b4d3a;
+    background: #2b140f;
+  }
+
+  .firmware-error h4 {
+    color: #ffd6ca;
+  }
+
+  .firmware-error p {
+    color: #f4b8a8;
   }
 
   .firmware-card-header h4,
