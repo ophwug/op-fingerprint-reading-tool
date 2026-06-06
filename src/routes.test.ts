@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseRouteInput, segmentFromUrl } from "./routes";
+import { buildAuthCallbackCleanUrl, buildRouteShareUrl, routeInputFromUrl } from "./routeInput";
 
 describe("route parsing", () => {
   it("accepts route names", () => {
@@ -28,5 +29,35 @@ describe("route parsing", () => {
     expect(segmentFromUrl("https://example.test/dongle/route/12/qlog.zst?sig=abc")).toBe(12);
     expect(segmentFromUrl("https://example.test/dongle/route/7/rlog.bz2")).toBe(7);
     expect(segmentFromUrl("https://example.test/dongle/route/1/qcamera.ts?sig=abc")).toBe(1);
+  });
+
+  it("builds share URLs on the configured app base path", () => {
+    expect(buildRouteShareUrl("https://example.test", "/op-fingerprint-reading-tool/", "5beb9b58bd12b691|0000010a--a51155e496")).toBe(
+      "https://example.test/op-fingerprint-reading-tool/?route=5beb9b58bd12b691%7C0000010a--a51155e496",
+    );
+  });
+
+  it("canonicalizes Connect URLs in share URLs", () => {
+    const shareUrl = buildRouteShareUrl(
+      "https://example.test",
+      "/",
+      "https://connect.comma.ai/5beb9b58bd12b691/0000010a--a51155e496/90/105",
+    );
+
+    expect(routeInputFromUrl(shareUrl)).toBe("5beb9b58bd12b691|0000010a--a51155e496");
+  });
+
+  it("ignores empty and invalid route query params", () => {
+    expect(routeInputFromUrl("https://example.test/?route=%20")).toBeNull();
+    expect(routeInputFromUrl("https://example.test/?route=not-a-route")).toBeNull();
+  });
+
+  it("preserves route params when cleaning OAuth callback URLs", () => {
+    expect(
+      buildAuthCallbackCleanUrl(
+        "https://example.test/op-fingerprint-reading-tool/?code=abc&provider=g&route=5beb9b58bd12b691%7C0000010a--a51155e496",
+        "/op-fingerprint-reading-tool/",
+      ),
+    ).toBe("https://example.test/op-fingerprint-reading-tool/?route=5beb9b58bd12b691%7C0000010a--a51155e496");
   });
 });

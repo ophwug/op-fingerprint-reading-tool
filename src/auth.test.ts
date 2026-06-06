@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { authHeaders, getAccessToken, getOAuthProviders, oauthRedirectNote, setAccessToken, signOut } from "./auth";
+import { authHeaders, completeAuthCallback, getAccessToken, getOAuthProviders, oauthRedirectNote, setAccessToken, signOut } from "./auth";
 
 describe("comma auth token storage", () => {
   const storage = new Map<string, string>();
@@ -92,5 +92,31 @@ describe("comma auth token storage", () => {
     expect(providers).toHaveLength(3);
     expect(providers[0].url).toContain("state=service%2Cnew-connect.connect-d5y.pages.dev");
     expect(providers[0].url).not.toContain("op-fingerprint-reading-tool");
+  });
+
+  it("removes OAuth callback params without discarding a shared route", async () => {
+    const replaceState = vi.fn();
+    vi.stubGlobal("window", {
+      location: {
+        protocol: "https:",
+        hostname: "example.test",
+        host: "example.test",
+        origin: "https://example.test",
+        search: "?code=abc&provider=g&route=5beb9b58bd12b691%7C0000010a--a51155e496",
+        href: "https://example.test/?code=abc&provider=g&route=5beb9b58bd12b691%7C0000010a--a51155e496",
+      },
+      history: {
+        replaceState,
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ access_token: "test-token" }), { status: 200 })),
+    );
+
+    await expect(completeAuthCallback()).resolves.toEqual({ handled: true });
+
+    expect(getAccessToken()).toBe("test-token");
+    expect(replaceState).toHaveBeenCalledWith({}, "", "https://example.test/?route=5beb9b58bd12b691%7C0000010a--a51155e496");
   });
 });
