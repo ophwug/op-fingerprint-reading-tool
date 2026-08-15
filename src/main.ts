@@ -60,7 +60,7 @@ app.innerHTML = `
     <section id="result-panel" class="result-panel" hidden></section>
 
     <section class="info-grid">
-      <article>
+      <article id="how-to-get-an-input-route">
         <h2>How to get an input route</h2>
         <ol>
           <li>Open <a href="https://connect.comma.ai/" target="_blank" rel="noreferrer">comma Connect</a> and select the drive.</li>
@@ -68,6 +68,7 @@ app.innerHTML = `
           <li>Copy either the browser URL or the route name. Clip start/end seconds after the route are ignored.</li>
           <li>You can turn Public access off again after reading the route.</li>
         </ol>
+        <p class="preserve-note"><strong>Submitting a pull request?</strong> Set the route to <strong>Preserved</strong> in comma Connect so reviewers can access it later.</p>
         <div class="jwt-option" id="auth-panel"></div>
       </article>
       <article>

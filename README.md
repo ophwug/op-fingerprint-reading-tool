@@ -56,6 +56,7 @@ https://ophwug.github.io/op-fingerprint-reading-tool/
 1. Open [comma Connect](https://connect.comma.ai/) and select the drive.
 2. Open **More info** and turn on **Public access**.
 3. Copy either the browser URL or the route name.
+4. If you are submitting a pull request, set the route to **Preserved** in comma Connect so reviewers can access it later.
 
 Accepted inputs look like:
 

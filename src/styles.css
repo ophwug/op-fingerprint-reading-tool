@@ -333,6 +333,11 @@ ol {
   padding-left: 22px;
 }
 
+.preserve-note {
+  margin: 14px 0 0;
+  color: #3f5550;
+}
+
 li + li {
   margin-top: 8px;
 }
@@ -481,6 +486,10 @@ footer {
   letter-spacing: 0.04em;
 }
 
+.firmware-copy-grid > section {
+  min-width: 0;
+}
+
 .table-wrap {
   margin-top: 12px;
   border: 1px solid #d8e0dc;
@@ -525,6 +534,15 @@ td code {
   align-content: start;
   min-width: 0;
   margin-top: 6px;
+}
+
+.copy-cell > code,
+.copy-cell > pre {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .copy-button {
